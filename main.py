@@ -5,13 +5,12 @@ import os
 from time import time
 from windowcapture import WindowCapture
 
-window = 'File Explorer'
+window = 'Zoom'
 
 #returns a list of matching windows
 window = WindowCapture.match_closest_window(window)
 
 #create WindowCapture object
-#window[0] = 'GitHub Desktop'
 wincap = WindowCapture(window[0])
 
 loop_time = time()

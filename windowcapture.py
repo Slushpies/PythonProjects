@@ -2,12 +2,12 @@ import win32gui
 import win32ui
 import win32con
 import numpy as np
-import difflib
-
+from ctypes import windll
 
 class WindowCapture:
     
     #screen size
+    window_name = ''
     w = 0
     h = 0
     hwnd = None
@@ -21,6 +21,8 @@ class WindowCapture:
         
         self.w = 1920
         self.h = 1080
+        
+        self.window_name = window_name
         
         self.hwnd = win32gui.FindWindow(None, window_name)
         #self.hwnd = window_name
@@ -60,30 +62,35 @@ class WindowCapture:
     
     def get_screenshot(self):
 
-        # get the window image data
-        wDC = win32gui.GetWindowDC(self.hwnd)
-        dcObj = win32ui.CreateDCFromHandle(wDC)
-        cDC = dcObj.CreateCompatibleDC()
-        dataBitMap = win32ui.CreateBitmap()
-        dataBitMap.CreateCompatibleBitmap(dcObj, self.w, self.h)
-        cDC.SelectObject(dataBitMap)
-        cDC.BitBlt((0, 0), (self.w, self.h), dcObj, (self.cropped_x, self.cropped_y), win32con.SRCCOPY)
+        windll.user32.SetProcessDPIAware()
+        hwnd = win32gui.FindWindow(None, self.window_name)
 
-        # convert the raw data into a format opencv can read
-        #dataBitMap.SaveBitmapFile(cDC, 'debug.bmp')
-        signedIntsArray = dataBitMap.GetBitmapBits(True)
-        img = np.fromstring(signedIntsArray, dtype='uint8')
-        img.shape = (self.h, self.w, 4)
+        left, top, right, bottom = win32gui.GetClientRect(hwnd)
+        w = right - left
+        h = bottom - top
 
-        # free resources
-        dcObj.DeleteDC()
-        cDC.DeleteDC()
-        win32gui.ReleaseDC(self.hwnd, wDC)
-        win32gui.DeleteObject(dataBitMap.GetHandle())
+        hwnd_dc = win32gui.GetWindowDC(hwnd)
+        mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
+        save_dc = mfc_dc.CreateCompatibleDC()
+        bitmap = win32ui.CreateBitmap()
+        bitmap.CreateCompatibleBitmap(mfc_dc, w, h)
+        save_dc.SelectObject(bitmap)
 
-        #optional remove alpha
-        #img = img[...,:3]
-        #img = np.ascontiguousarray(img)
+        # If Special K is running, this number is 3. If not, 1
+        result = windll.user32.PrintWindow(hwnd, save_dc.GetSafeHdc(), 3)
+
+        bmpinfo = bitmap.GetInfo()
+        bmpstr = bitmap.GetBitmapBits(True)
+
+        img = np.frombuffer(bmpstr, dtype=np.uint8).reshape((bmpinfo["bmHeight"], bmpinfo["bmWidth"], 4))
+        img = np.ascontiguousarray(img)[..., :-1]  # make image C_CONTIGUOUS and drop alpha channel
+
+        if not result:  # result should be 1
+            win32gui.DeleteObject(bitmap.GetHandle())
+            save_dc.DeleteDC()
+            mfc_dc.DeleteDC()
+            win32gui.ReleaseDC(hwnd, hwnd_dc)
+            raise RuntimeError(f"Unable to acquire screenshot! Result: {result}")
 
         return img
     

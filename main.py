@@ -1,16 +1,24 @@
 import cv2 as cv
 import numpy as np
 import os
+#import win32gui
 from time import time
 from windowcapture import WindowCapture
 
-wincap = WindowCapture('Visual Studio Code')
+window = 'File Explorer'
+
+#returns a list of matching windows
+window = WindowCapture.match_closest_window(window)
+
+#create WindowCapture object
+#window[0] = 'GitHub Desktop'
+wincap = WindowCapture(window[0])
 
 loop_time = time()
 
+
 while (True):
 
-    #for testing purposes use a screenshot
     screenshot = wincap.get_screenshot()
     cv.imshow('Computer Vision', screenshot)
     
